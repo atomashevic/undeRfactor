@@ -52,6 +52,14 @@ test_that("Proposition 1: the weaker block keeps a local minimum below the fold"
   expect_equal(nrow(high$minima), 1)
 })
 
+test_that("narrow basins near the fold are found (.60/.80, fold at .017)", {
+  near <- pop_fit(two_trait_cor(0.01, lambda_A = 0.60, lambda_B = 0.80))
+  expect_equal(nrow(near$minima), 2)
+  expect_equal(round(near$minima$F, 4), c(0.6064, 1.9922))
+  past <- pop_fit(two_trait_cor(0.03, lambda_A = 0.60, lambda_B = 0.80))
+  expect_equal(nrow(past$minima), 1)
+})
+
 test_that("PHQ-ADS shares of Section 8 are reproduced", {
   share <- function(phi, lam, est = "ML", thr = NULL)
     pop_fit(two_trait_cor(phi, lam, m_A = 9, m_B = 7), est, thresholds = thr)$share$share_A

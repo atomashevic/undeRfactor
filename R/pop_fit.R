@@ -212,8 +212,16 @@ ml_numeric <- function(R, design, nstart) {
   p <- nrow(R)
   starts <- list(pmin(pmax((1 - 0.5 / p) / diag(solve(R)), 0.05), 1))
   if (!is.null(design)) {
-    A <- design$blocks$A
-    starts <- c(starts, list(ifelse(seq_len(p) %in% A, 0.1, 0.9), ifelse(seq_len(p) %in% A, 0.9, 0.1)))
+    A <- seq_len(p) %in% design$blocks$A
+    ## one block fitted, the other left to its uniquenesses: the phi = 0
+    ## solution of each trait, which lies in the basin of that trait's minimum
+    ## even when the basin is narrow (near the fold of Proposition 1)
+    one_block <- function(B) {
+      r <- R[B, B][lower.tri(R[B, B])]
+      ifelse(B, pmin(pmax(1 - mean(r), 0.05), 0.95), 0.99)
+    }
+    starts <- c(starts, list(one_block(A), one_block(!A),
+                             ifelse(A, 0.1, 0.9), ifelse(A, 0.9, 0.1)))
   }
   starts <- c(starts, replicate(nstart, stats::runif(p, 0.2, 1), simplify = FALSE))
   run <- function(s) {
@@ -224,7 +232,7 @@ ml_numeric <- function(R, design, nstart) {
   lapply(starts, function(s) {
     o <- run(s)
     ## leave a saddle point if the optimizer stopped on one
-    o2 <- run(pmin(pmax(o$par * (1 + stats::runif(p, -0.01, 0.01)), 1e-4), 1))
+    o2 <- run(pmin(pmax(o$par * (1 + stats::runif(p, -1e-3, 1e-3)), 1e-4), 1))
     if (o2$value < o$value - 1e-12) o <- o2
     list(F = o$value, l = ml_loadings(o$par, R), psi = o$par, converged = o$convergence == 0)
   })
@@ -246,8 +254,12 @@ ls_numeric <- function(R, W, design, nstart) {
   e1 <- eigen(R, symmetric = TRUE)
   starts <- list(pmin(abs(e1$vectors[, 1]) * sqrt(max(e1$values[1] - 1, 0.1)), 0.95))
   if (!is.null(design)) {
-    A <- design$blocks$A
-    starts <- c(starts, list(ifelse(seq_len(p) %in% A, 0.9, 0.1), ifelse(seq_len(p) %in% A, 0.1, 0.9)))
+    A <- seq_len(p) %in% design$blocks$A
+    one_block <- function(B) {
+      r <- R[B, B][lower.tri(R[B, B])]
+      ifelse(B, sqrt(min(max(mean(r), 0.01), 0.95)), 0.01)
+    }
+    starts <- c(starts, list(one_block(A), one_block(!A), ifelse(A, 0.9, 0.1), ifelse(A, 0.1, 0.9)))
   }
   starts <- c(starts, replicate(nstart, stats::runif(p, 0, 1), simplify = FALSE))
   run <- function(s) stats::optim(s, ls_obj, ls_grad, R = R, W = W, method = "L-BFGS-B",
@@ -255,7 +267,7 @@ ls_numeric <- function(R, W, design, nstart) {
                                   control = list(factr = 10, pgtol = 0, maxit = 10000))
   lapply(starts, function(s) {
     o <- run(s)
-    o2 <- run(pmin(pmax(o$par + stats::runif(p, -0.01, 0.01), -1), 1))
+    o2 <- run(pmin(pmax(o$par + stats::runif(p, -1e-3, 1e-3), -1), 1))
     if (o2$value < o$value - 1e-14) o <- o2
     l <- o$par
     if (sum(l) < 0) l <- -l
