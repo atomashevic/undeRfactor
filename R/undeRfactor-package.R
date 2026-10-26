@@ -9,7 +9,13 @@
 #'   trait shares of the one-factor model, with every distinct minimum;
 #' * [blind_spot()]: the trait correlations above which conventional cutoffs
 #'   no longer reject the one-factor model;
+#' * [block_solutions()] and [fold_phi()]: all one-factor minima and saddles
+#'   of a design with one loading per block, from the exact quartic, and the
+#'   trait correlations at which competing minima appear or disappear;
 #' * [factor_share()]: the share of each trait in a fitted factor;
+#' * [score_share()]: the trait composition of factor scores and sum scores;
+#' * [predict_one_factor()]: the one-factor solution predicted from a
+#'   two-factor fit, from block summaries and from the full implied matrix;
 #' * [order_check()]: whether item order or starting values change a
 #'   one-factor solution in a sample.
 #'

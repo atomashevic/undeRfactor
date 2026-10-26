@@ -2,15 +2,19 @@
 
 What does a single factor measure when the items come from two correlated
 traits, and when do fit indices notice? `undeRfactor` implements the results of
-the paper *When one factor represents two traits: symmetry breaking and
-population comparative fit* (manuscript in preparation).
+the paper *Fitting One Factor to Two Traits: Population Solutions and Fit
+Indices* (preprint). Theorem, section and appendix numbers in the package
+documentation refer to version 1 of the preprint.
 
 | Function | What it returns |
 |---|---|
 | `phi_star()` | The trait correlation below which the one-factor solution stops being an equal composite and follows one trait, for ML, ULS and WLSMV |
 | `pop_fit()` | Exact population discrepancy, CFI, TLI, RMSEA, SRMR, loadings and trait shares of the one-factor model, with every distinct minimum |
 | `blind_spot()` | The trait correlations above which conventional cutoffs no longer reject the one-factor model |
+| `block_solutions()`, `fold_phi()` | Every one-factor minimum and saddle of a design with one loading per block, from an exact quartic, and the trait correlations at which competing minima appear or disappear |
 | `factor_share()` | The share of each trait in a fitted factor |
+| `score_share()` | The trait composition of factor scores and sum scores |
+| `predict_one_factor()` | The one-factor solution predicted from a two-factor fit: from a pooled loading, from block summaries, and from the full implied matrix |
 | `order_check()` | Whether item order or starting values change a one-factor solution in a sample |
 
 `two_trait_cor()` builds the population correlation matrix of a two-trait design.
@@ -86,10 +90,44 @@ order_check(X, blocks = list(A = paste0("A", 1:4), B = paste0("B", 1:4)), nstart
 ## Reproducing the paper
 
 The tests in `tests/testthat` check the package against the paper's numbers:
-the thresholds of Theorems 1 and 2 and Corollary 1, Table 1, the closed forms
-against numerical minimization, the spurious minimum of Proposition 1, and the
-PHQ-ADS shares of Section 8.
+the maximum likelihood, unweighted least-squares and weighted least-squares
+thresholds, the fit-index boundaries of Table 1, the closed forms against
+numerical minimization, a higher-objective local minimum, and the PHQ-ADS
+shares of the illustration. Version 0.2.0 is the version cited in the paper.
 
 ## License
 
 MIT
+
+### Signed coefficients and magnitude shares
+
+`factor_share()` constructs coefficients that match block-average covariances.
+Its default `mode = "absolute"` retains the original absolute-loading calculation.
+Use `mode = "signed"` to preserve the signs of the fitted and reference loadings:
+
+```r
+factor_share(.6, -.2, .7, .7, .3, mode = "signed")
+```
+
+`share_A` normalizes signed coefficients by their sum; it can exceed one or be
+negative. `magnitude_share_A` normalizes their absolute values and lies between
+zero and one. In absolute mode the magnitude share refers to the coefficients
+for the transformed targets, not the coefficients from signed mode. Neither
+share is a variance decomposition or a factor-score share, and the resulting
+composite need not have unit variance. Trait orientations and the sign of `phi`
+must be consistent. A global fitted-factor sign reversal preserves both shares.
+
+Zero reference loadings and singular trait correlations are rejected. A zero
+coefficient sum leaves the signed shares undefined (`NA`); a zero composite
+also leaves the magnitude shares undefined. `status` distinguishes those cases.
+`condition_number` reports sensitivity of the covariance inversion and
+`sum_condition` reports cancellation in the signed normalization. Small nonzero
+sums and correlations strictly inside the boundary remain allowed; inspect these
+diagnostics and input uncertainty before interpreting extreme results.
+
+`pop_fit()` and `order_check()` retain signed block means and their reference
+trait orientation when computing shares. An invalid reference (for example a
+zero mean loading or an estimated correlation at the boundary) leaves usable
+one-factor fits intact: shares are `NA` and a status and reason explain why.
+With heterogeneous items, covariance matching applies to block averages only;
+a zero reference mean does not identify coefficients from these equations.

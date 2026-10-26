@@ -34,13 +34,16 @@ that trait alone.
 (Theorem 1 of the paper).
 \item \code{"ULS"}: \eqn{1/(2m)}, whatever the loading (Theorem 2).
 \item \code{"WLSMV"}: the threshold of diagonally weighted least squares on
-polychoric correlations with the thresholds free (Corollary 1). It solves
-\eqn{\varphi = 1/2 - (m - 1)/(2m\kappa(\varphi))}, where \eqn{\kappa} is
+polychoric correlations with the thresholds free (the weighted
+least-squares result of Section 5.1 of the paper). It solves
+\eqn{\varphi = 1/2 - (m - 1)/(2m\omega(\varphi))}, where \eqn{\omega} is
 the ratio of the asymptotic variance of a within-block polychoric
-correlation to that of a cross-block one, computed exactly from the
-influence function of the two-step polychoric estimator. \code{NA} means that
-no threshold exists: the WLSMV solution is a composite at every
-\eqn{\varphi \ge 0}.
+correlation to that of a cross-block one, computed from the influence
+function of the two-step polychoric estimator with numerically
+differentiated cell probabilities. The root is searched on
+\eqn{(0, 1/2)}; a single root was found in every design evaluated, but
+uniqueness is not established in general. \code{NA} is returned when the
+composite condition already holds at \eqn{\varphi = 0}.
 }
 }
 \examples{

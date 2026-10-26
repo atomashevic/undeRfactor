@@ -44,3 +44,27 @@ test_that("order_check checks its input", {
   expect_error(order_check(X, list("a")), "two character vectors")
   expect_error(order_check(X, list("a", "z")), "not found")
 })
+
+test_that("ULS fits correlations, so rescaling an item changes nothing", {
+  skip_on_cran()
+  X <- sim_data(two_trait_cor(phi = 0.2, lambda_A = 0.7, m_A = 4), 2000, 4)
+  bl <- list(A = paste0("A", 1:4), B = paste0("B", 1:4))
+  a <- order_check(X, bl, estimator = "ULS", nstart = 3)
+  X$A1 <- 3 * X$A1
+  b <- order_check(X, bl, estimator = "ULS", nstart = 3)
+  expect_equal(a$solutions$share_A, b$solutions$share_A, tolerance = 1e-6)
+  m <- order_check(cov(X), bl, estimator = "ULS", nstart = 3, nobs = nrow(X))
+  expect_equal(m$solutions$share_A, b$solutions$share_A, tolerance = 1e-6)
+})
+
+test_that("a covariance matrix gives the same solutions as raw data", {
+  skip_on_cran()
+  X <- sim_data(two_trait_cor(phi = 0.1, lambda_A = 0.68, lambda_B = 0.72), 2000, 1)
+  bl <- list(A = paste0("A", 1:4), B = paste0("B", 1:4))
+  d <- order_check(X, bl, nstart = 5)
+  m <- order_check(cov(X), bl, nstart = 5, nobs = nrow(X))
+  expect_equal(m$solutions$fmin, d$solutions$fmin, tolerance = 1e-8)
+  expect_equal(m$default_first_A, d$default_first_A)
+  expect_true(all(d$solutions$min_uniqueness > 0))
+  expect_error(order_check(cov(X), bl), "nobs")
+})

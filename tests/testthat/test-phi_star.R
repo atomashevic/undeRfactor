@@ -21,3 +21,7 @@ test_that("inputs are checked", {
   expect_error(phi_star(1, 0.5), "at least 2")
   expect_error(phi_star(4, 1.2), "loadings")
 })
+
+test_that("item-specific WLSMV thresholds are refused with a pointer to pop_fit", {
+  expect_error(phi_star(4, 0.7, "WLSMV", thresholds = list(c(-1, 0, 1), c(0, 1))), "pop_fit")
+})

@@ -11,13 +11,16 @@
 #'   (Theorem 1 of the paper).
 #' * `"ULS"`: \eqn{1/(2m)}, whatever the loading (Theorem 2).
 #' * `"WLSMV"`: the threshold of diagonally weighted least squares on
-#'   polychoric correlations with the thresholds free (Corollary 1). It solves
-#'   \eqn{\varphi = 1/2 - (m - 1)/(2m\kappa(\varphi))}, where \eqn{\kappa} is
+#'   polychoric correlations with the thresholds free (the weighted
+#'   least-squares result of Section 5.1 of the paper). It solves
+#'   \eqn{\varphi = 1/2 - (m - 1)/(2m\omega(\varphi))}, where \eqn{\omega} is
 #'   the ratio of the asymptotic variance of a within-block polychoric
-#'   correlation to that of a cross-block one, computed exactly from the
-#'   influence function of the two-step polychoric estimator. `NA` means that
-#'   no threshold exists: the WLSMV solution is a composite at every
-#'   \eqn{\varphi \ge 0}.
+#'   correlation to that of a cross-block one, computed from the influence
+#'   function of the two-step polychoric estimator with numerically
+#'   differentiated cell probabilities. The root is searched on
+#'   \eqn{(0, 1/2)}; a single root was found in every design evaluated, but
+#'   uniqueness is not established in general. `NA` is returned when the
+#'   composite condition already holds at \eqn{\varphi = 0}.
 #'
 #' @param m Number of items per trait (at least 2). Vectorized.
 #' @param lambda Standardized loading, common to all items. Vectorized.
@@ -44,8 +47,12 @@ phi_star <- function(m, lambda, estimator = c("ML", "ULS", "WLSMV"),
     ML = (1 + (m - 1) * L) / (m * (2 - L)),
     ULS = 1 / (2 * m),
     WLSMV = {
-      if (is.null(thresholds) || !is.numeric(thresholds))
-        stop("`thresholds` (a numeric vector shared by all items) is required for WLSMV.",
+      if (is.list(thresholds))
+        stop("phi_star() assumes thresholds shared by all items; for item-specific thresholds use pop_fit(R, \"WLSMV\", thresholds = <list>).",
+             call. = FALSE)
+      if (is.null(thresholds) || !is.numeric(thresholds) || anyNA(thresholds) ||
+          anyDuplicated(thresholds))
+        stop("`thresholds` (a numeric vector of distinct values shared by all items) is required for WLSMV.",
              call. = FALSE)
       thr <- sort(thresholds)
       mapply(wlsmv_threshold, m, lambda, MoreArgs = list(thr = thr))

@@ -12,11 +12,14 @@ order_check(
   nstart = 20,
   tol = 0.01,
   seed = 1,
+  nobs = NULL,
   ...
 )
 }
 \arguments{
-\item{data}{A data frame with the items.}
+\item{data}{A data frame with the items, or a covariance (or correlation)
+matrix of continuous items with item names as row names; a matrix
+requires \code{nobs} and avoids recomputing sample statistics for each start.}
 
 \item{blocks}{A list of two character vectors with the item names of each
 trait, for example \code{list(dep = paste0("phq", 1:9), anx = paste0("gad", 1:7))}.
@@ -34,6 +37,8 @@ count as the same solution.}
 
 \item{seed}{Seed for the random starts; the caller's random number state
 is restored afterwards. \code{NULL} uses the current state.}
+
+\item{nobs}{Number of observations, required when \code{data} is a matrix.}
 
 \item{...}{Further arguments passed to \code{\link[lavaan:cfa]{lavaan::cfa()}}, for example
 \code{missing = "fiml"}.}
@@ -62,6 +67,22 @@ Read the result in two steps. If the two default fits reach different
 solutions, item order decides which trait the factor follows. If a default
 fit is not the solution with the lowest discrepancy, report the lowest one
 and treat the other as a local minimum.
+
+Trait shares retain signed block means and the reference model's trait
+orientation. They are covariance-matching coefficient ratios, which can
+fall outside zero to one; they are not variance or factor-score shares.
+Invalid reference estimates leave the one-factor fits available, with
+\code{share_A = NA} and explanatory \code{share_status} and \code{share_reason} columns.
+The solutions also retain \code{magnitude_share_A}, \code{condition_number}, and
+\code{sum_condition} from \code{\link[=factor_share]{factor_share()}}, and \code{min_uniqueness}, the smallest
+standardized uniqueness, which flags solutions at or near a Heywood
+boundary. Agreement in objective and reported convergence do not establish
+a local minimum; check first- and second-order conditions when competing
+solutions affect interpretation.
+
+ULS is not scale invariant, so with \code{estimator = "ULS"} continuous items
+are standardized (a covariance matrix is converted to correlations) and the
+fits are ULS on correlations, the criterion of Theorem 2.
 }
 \examples{
 \donttest{

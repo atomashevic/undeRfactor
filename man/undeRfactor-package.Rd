@@ -17,7 +17,13 @@ stops being an equal composite and follows one trait (ML, ULS, WLSMV);
 trait shares of the one-factor model, with every distinct minimum;
 \item \code{\link[=blind_spot]{blind_spot()}}: the trait correlations above which conventional cutoffs
 no longer reject the one-factor model;
+\item \code{\link[=block_solutions]{block_solutions()}} and \code{\link[=fold_phi]{fold_phi()}}: all one-factor minima and saddles
+of a design with one loading per block, from the exact quartic, and the
+trait correlations at which competing minima appear or disappear;
 \item \code{\link[=factor_share]{factor_share()}}: the share of each trait in a fitted factor;
+\item \code{\link[=score_share]{score_share()}}: the trait composition of factor scores and sum scores;
+\item \code{\link[=predict_one_factor]{predict_one_factor()}}: the one-factor solution predicted from a
+two-factor fit, from block summaries and from the full implied matrix;
 \item \code{\link[=order_check]{order_check()}}: whether item order or starting values change a
 one-factor solution in a sample.
 }
@@ -28,13 +34,18 @@ design.
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/atomashevic/underfactor}
-  \item Report bugs at \url{https://github.com/atomashevic/underfactor/issues}
+  \item \url{https://github.com/atomashevic/undeRfactor}
+  \item Report bugs at \url{https://github.com/atomashevic/undeRfactor/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: Aleksandar Toma<c5><a1>evi<c4><87> \email{atomashevic@gmail.com}
+\strong{Maintainer}: Aleksandar Tomašević \email{atomashevic@gmail.com} (\href{https://orcid.org/0000-0003-4863-6051}{ORCID})
+
+Authors:
+\itemize{
+  \item Aleksandar Tomašević \email{atomashevic@gmail.com} (\href{https://orcid.org/0000-0003-4863-6051}{ORCID})
+}
 
 }
 \keyword{internal}

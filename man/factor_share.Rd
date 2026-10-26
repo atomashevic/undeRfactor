@@ -2,43 +2,83 @@
 % Please edit documentation in R/factor_share.R
 \name{factor_share}
 \alias{factor_share}
-\title{Share of each trait in a fitted single factor}
+\title{Covariance-matching coefficients and shares of two traits}
 \usage{
-factor_share(l_A, l_B, lambda_A, lambda_B, phi)
+factor_share(l_A, l_B, lambda_A, lambda_B, phi, mode = c("absolute", "signed"))
 }
 \arguments{
-\item{l_A, l_B}{Average standardized one-factor loadings of the items of
-block A and block B.}
+\item{l_A, l_B}{Average standardized one-factor loadings of blocks A and B.
+Zero is allowed. All numerical arguments must be nonempty finite real
+numeric vectors, either scalar or of one common length. Scalars are
+recycled; other length mismatches are rejected.}
 
-\item{lambda_A, lambda_B}{Average standardized loadings of the two blocks
-in the two-factor model.}
+\item{lambda_A, lambda_B}{Average standardized two-factor reference loadings,
+each nonzero. Inputs are used as supplied: loading magnitudes are not
+clipped or screened for model admissibility.}
 
-\item{phi}{Trait correlation in the two-factor model.}
+\item{phi}{Trait correlation, strictly between -1 and 1.}
+
+\item{mode}{\code{"absolute"} (the backward-compatible default) or \code{"signed"}.}
 }
 \value{
-A data frame with the weights \code{w_A}, \code{w_B}, the share of trait A
-\code{share_A}, the share of the trait the factor follows \code{share}
-(\eqn{\ge .5}), and \code{follows} (\code{"A"}, \code{"B"}, or \code{"neither"} for an equal
-composite).
+A data frame whose first five columns retain the original API:
+\code{w_A}, \code{w_B}, \code{share_A}, \code{share} (the larger signed coefficient ratio,
+possibly greater than one), and \code{follows} (\code{"A"}, \code{"B"}, or \code{"neither"}
+when \code{abs(share_A - .5) < 1e-6}, the original descriptive tie tolerance).
+\code{follows} compares signed ratios, not coefficient signs or variances.
+Additional columns are \code{magnitude_share_A}, \code{magnitude_share} (the larger
+magnitude share), \code{condition_number}, \code{sum_condition}, \code{status}
+(\code{"ok"}, \code{"zero_sum"}, or \code{"zero_composite"}), and \code{mode}.
 }
 \description{
-Writes the fitted factor as a composite \eqn{w_A \theta_A + w_B \theta_B}
-of the two traits whose covariances with the items reproduce the
-block-average fitted loadings,
-\deqn{l_A = \lambda_A (w_A + \varphi w_B), \qquad l_B = \lambda_B (\varphi w_A + w_B),}
-and reports the share of trait A, \eqn{w_A/(w_A + w_B)}. The share is .5
-for an equal composite and 1 (or 0) when the factor represents trait A
-(or B) alone.
+Solves the block-average covariance equations
+\deqn{l_A = \lambda_A (w_A + \varphi w_B), \qquad l_B = \lambda_B (\varphi w_A + w_B).}
+With \code{mode = "signed"}, the signs supplied by the caller are retained.
+The default \code{mode = "absolute"} preserves the original API: it replaces
+all four loadings by their absolute values before solving. Those weights
+match the absolute-value targets, not generally the signed input targets.
+A call with negative loadings and no explicit \code{mode} warns about this choice.
+Trait orientations and \code{phi} must be consistent; reflecting one trait
+requires reflecting its reference loading and \code{phi} together.
+Signed shares depend on the chosen trait orientations; magnitude shares
+are invariant to reflecting either trait coordinate.
 }
 \details{
-The fitted loadings \code{l_A}, \code{l_B} come from the one-factor model; the true
-or estimated loadings \code{lambda_A}, \code{lambda_B} and trait correlation \code{phi}
-come from the two-factor model. All loadings are standardized, and block
-averages are taken in absolute value, which removes sign reflections.
+\code{share_A} is the signed coefficient ratio \eqn{w_A/(w_A+w_B)}. It is
+invariant to a global sign reversal of the fitted factor, but can be outside
+\eqn{[0, 1]} when the coefficients have opposite signs. \code{magnitude_share_A} is
+\eqn{|w_A|/(|w_A|+|w_B|)}, which lies in \eqn{[0, 1]}. Neither quantity is a
+variance share or the composition of a regression, Bartlett or sum score.
+The covariance-matching composite need not have unit variance. With
+heterogeneous items these equations match block averages only.
+
+Nonzero reference loadings and \eqn{|\varphi|<1} are required to identify
+both coefficients. A zero reference loading removes an equation (or is
+incompatible with a nonzero fitted loading). At \eqn{|\varphi|=1}, the
+trait covariance matrix is singular; the two coefficients are not unique
+even if the target is compatible. Such inputs are rejected.
+
+If both fitted loadings are zero, all shares and \code{follows} are \code{NA} and
+\code{status} is \code{"zero_composite"}. If the target ratios sum to exactly zero
+but are nonzero, the signed shares and \code{follows} are \code{NA}, the magnitude
+shares remain defined, and \code{status} is \code{"zero_sum"}. No tolerance truncates
+small nonzero sums or correlations near the boundary.
+
+The calculation uses sum and contrast coordinates and computes \code{share_A}
+directly, without summing large cancelling coefficients. This avoids
+unnecessary roundoff but cannot remove sensitivity inherent in the inputs.
+\code{condition_number} is the spectral condition number of the trait covariance
+matrix, \eqn{(1+|\varphi|)/(1-|\varphi|)}. \code{sum_condition} is
+\eqn{(|a|+|b|)/|a+b|}, where \eqn{a=l_A/\lambda_A} and
+\eqn{b=l_B/\lambda_B} after the chosen preprocessing; it diagnoses
+cancellation in the signed-share denominator. It is infinite for a nonzero
+zero-sum target and \code{NA} for the zero composite. These are diagnostics,
+not automatic rejection thresholds or statistical uncertainty estimates.
 }
 \examples{
-## population one-factor loadings for 9 depression and 7 anxiety items
 fit <- pop_fit(two_trait_cor(phi = 0.653, lambda_A = 0.75, m_A = 9, m_B = 7))
 fit$share
-factor_share(l_A = 0.70, l_B = 0.62, lambda_A = 0.75, lambda_B = 0.75, phi = 0.65)
+factor_share(0.70, 0.62, 0.75, 0.75, 0.65)
+factor_share(0.6, -0.2, 0.7, 0.7, 0.3, mode = "signed")
+factor_share(0.5, -0.5, 0.7, 0.7, 0.3, mode = "signed")
 }

@@ -32,14 +32,15 @@ restored afterwards. \code{NULL} uses the current state.}
 }
 \value{
 An object of class \code{"pop_fit"}: a list with \code{estimator}, \code{F} (the
-minimum discrepancy), \code{F_B}, \code{df}, \code{CFI}, \code{TLI}, \code{RMSEA}, \code{SRMR},
+lowest discrepancy found), \code{F_B}, \code{df}, \code{CFI}, \code{TLI}, \code{RMSEA}, \code{SRMR},
 \code{loadings}, \code{uniquenesses}, \code{share} (a row of \code{\link[=factor_share]{factor_share()}}, or
-\code{NULL}), \code{minima} (one row per distinct minimum, global first) and
-\code{method}.
+\code{NULL}), \code{scores} (the result of \code{\link[=score_share]{score_share()}}, or \code{NULL}), \code{minima}
+(one row per distinct minimum, lowest discrepancy first, with signed and
+magnitude shares) and \code{method}.
 }
 \description{
 Fits a one-factor model to a population correlation matrix, finds its
-global minimum, and returns the population discrepancy, the fit indices,
+closed-form solution where available or searches numerically, and returns the population discrepancy, the fit indices,
 the fitted loadings and, for matrices made by \code{\link[=two_trait_cor]{two_trait_cor()}}, the share
 of each trait in the fitted factor. With two traits the one-factor
 discrepancy can have two minima (one per trait); all distinct minima found
@@ -52,7 +53,12 @@ are listed.
 is twice lavaan's \code{fmin}. CFI = 1 - F/F_B, TLI = 1 - (F/df)/(F_B/df_B)
 and RMSEA = sqrt(F/df), with F_B = -log det R, df = p(p - 3)/2 and
 df_B = p(p - 1)/2. For the exchangeable design (equal loadings and block
-sizes, \eqn{\varphi \ge 0}) the closed forms of Theorem 1 are used.
+sizes) the closed forms of Theorem 1 are used. For other designs with one
+loading per block and \eqn{\varphi \ne 0}, all minima come from the exact
+quartic of Appendix D (see \code{\link[=block_solutions]{block_solutions()}}). Otherwise the
+uniquenesses are optimized numerically on the log scale from several
+deterministic starts and \code{nstart} random ones; these minima are the best
+found, not certified.
 \item \code{"ULS"}: the least-squares discrepancy over the off-diagonal elements,
 \eqn{\sum_{i<j} (R_{ij} - l_i l_j)^2}, with free uniquenesses.
 \item \code{"WLSMV"}: the same sum weighted by the inverse asymptotic variances of
@@ -64,6 +70,22 @@ solution when \code{R} holds the polychoric correlations. Requires
 For \code{"ULS"} and \code{"WLSMV"} only SRMR is returned among the fit indices:
 their CFI, TLI and RMSEA depend on scaling choices (unscaled, scaled,
 robust) that a population value cannot settle without them.
+
+Trait shares use signed block means and the generating trait orientation.
+They match block-average covariances, not necessarily individual items or
+factor-score composition. An invalid reference or unrepresentable result
+leaves the fit intact and returns an unavailable share with a \code{reason}.
+For \eqn{\varphi < 0} the signed coefficients of a solution can have
+opposite signs, so \code{share_A} can lie far outside zero to one, or be huge
+for a bipolar composite whose coefficients nearly cancel. The magnitude
+share then describes the solution; it equals the share obtained after
+reflecting block B (Section 5.3 of the paper), and the printout reports it.
+Minima that differ only in the overall sign of the loadings are the same
+solution; the reported sign makes the loading sum nonnegative.
+
+\code{scores} gives the trait composition of the regression (or Bartlett)
+factor score and of the unit-weighted sum of the standardized items; see
+\code{\link[=score_share]{score_share()}}.
 }
 \examples{
 R <- two_trait_cor(phi = 0.3, lambda_A = 0.7, m_A = 4)

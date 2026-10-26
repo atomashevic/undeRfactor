@@ -60,7 +60,7 @@ test_that("narrow basins near the fold are found (.60/.80, fold at .017)", {
   expect_equal(nrow(past$minima), 1)
 })
 
-test_that("PHQ-ADS shares of Section 8 are reproduced", {
+test_that("PHQ-ADS shares of Section 7 are reproduced", {
   share <- function(phi, lam, est = "ML", thr = NULL)
     pop_fit(two_trait_cor(phi, lam, m_A = 9, m_B = 7), est, thresholds = thr)$share$share_A
   expect_equal(round(c(share(0.653, 0.70), share(0.653, 0.80)), 2), c(0.64, 0.70))
@@ -75,4 +75,40 @@ test_that("PHQ-ADS shares of Section 8 are reproduced", {
 test_that("bad input is rejected", {
   expect_error(pop_fit(diag(3)), "at least 4")
   expect_error(pop_fit(matrix(0.5, 4, 4)), "unit diagonal")
+})
+
+test_that("the optimizer survives starts that previously left the bounds", {
+  ## the PHQ-ADS layout at loading .70 and phi = .8 aborted in 0.2.0 drafts
+  R <- two_trait_cor(0.8, 0.7, 0.7, m_A = 9, m_B = 7)
+  exact <- pop_fit(R)
+  num <- pop_fit(R, exact = FALSE)
+  expect_equal(exact$method, "exact (block quartic)")
+  expect_equal(num$F, exact$F, tolerance = 1e-8)
+  expect_equal(exact$share$share_A, 0.602, tolerance = 1e-3)
+})
+
+test_that("negative phi: minima are sign invariant and bipolar shares are reported", {
+  bip <- pop_fit(two_trait_cor(-0.6, 0.7, m_A = 4))
+  pos <- pop_fit(two_trait_cor(0.6, 0.7, m_A = 4))
+  expect_equal(nrow(bip$minima), 1)
+  expect_equal(bip$F, pos$F)
+  expect_equal(bip$minima$magnitude_share_A, 0.5, tolerance = 1e-8)
+  expect_lt(bip$share$w_A * bip$share$w_B, 0)
+  expect_output(print(bip), "bipolar contrast")
+  expect_equal(nrow(pop_fit(two_trait_cor(-0.6, 0.7, m_A = 4), exact = FALSE)$minima), 1)
+  tilt <- pop_fit(two_trait_cor(-0.3, 0.7, m_A = 4), exact = FALSE)
+  expect_equal(nrow(tilt$minima), 2)
+  expect_equal(tilt$minima$magnitude_share_A[1], 0.786, tolerance = 1e-3)
+  expect_output(print(tilt), "mirror images")
+  het <- function(phi) pop_fit(two_trait_cor(phi, c(0.6, 0.7, 0.8, 0.75), c(0.55, 0.65, 0.7, 0.8)))
+  expect_equal(het(-0.5)$F, het(0.5)$F, tolerance = 1e-8)
+  expect_equal(het(-0.5)$share$magnitude_share_A, het(0.5)$share$share_A, tolerance = 1e-6)
+})
+
+test_that("score shares of Sections 5.2 and 7 are reproduced", {
+  f <- pop_fit(two_trait_cor(0.3, 0.7, m_A = 4))
+  expect_equal(round(f$scores$share_A, 3), c(0.750, 0.500))
+  sc <- function(phi, lam) pop_fit(two_trait_cor(phi, lam, m_A = 9, m_B = 7))$scores$share_A[1]
+  expect_equal(round(c(sc(0.912, 0.70), sc(0.912, 0.80)), 2), c(0.57, 0.58))
+  expect_equal(round(c(sc(0.653, 0.70), sc(0.653, 0.80)), 2), c(0.63, 0.68))
 })

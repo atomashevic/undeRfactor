@@ -1,6 +1,7 @@
-## Exact asymptotic variance of the two-step polychoric correlation estimator
+## Asymptotic variance of the two-step polychoric correlation estimator
 ## (thresholds from the margins, then rho by bivariate ML given the
-## thresholds), from its influence function. Used for the WLSMV weights.
+## thresholds), from its influence function with numerically differentiated
+## cell probabilities. Used for the WLSMV weights.
 
 bvn_cdf <- function(x, y, rho) {
   out <- numeric(length(x))

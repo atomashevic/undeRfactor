@@ -13,7 +13,25 @@
 #' fit is not the solution with the lowest discrepancy, report the lowest one
 #' and treat the other as a local minimum.
 #'
-#' @param data A data frame with the items.
+#' Trait shares retain signed block means and the reference model's trait
+#' orientation. They are covariance-matching coefficient ratios, which can
+#' fall outside zero to one; they are not variance or factor-score shares.
+#' Invalid reference estimates leave the one-factor fits available, with
+#' `share_A = NA` and explanatory `share_status` and `share_reason` columns.
+#' The solutions also retain `magnitude_share_A`, `condition_number`, and
+#' `sum_condition` from [factor_share()], and `min_uniqueness`, the smallest
+#' standardized uniqueness, which flags solutions at or near a Heywood
+#' boundary. Agreement in objective and reported convergence do not establish
+#' a local minimum; check first- and second-order conditions when competing
+#' solutions affect interpretation.
+#'
+#' ULS is not scale invariant, so with `estimator = "ULS"` continuous items
+#' are standardized (a covariance matrix is converted to correlations) and the
+#' fits are ULS on correlations, the criterion of Theorem 2.
+#'
+#' @param data A data frame with the items, or a covariance (or correlation)
+#'   matrix of continuous items with item names as row names; a matrix
+#'   requires `nobs` and avoids recomputing sample statistics for each start.
 #' @param blocks A list of two character vectors with the item names of each
 #'   trait, for example `list(dep = paste0("phq", 1:9), anx = paste0("gad", 1:7))`.
 #'   The names of the list label the traits (default `"A"` and `"B"`).
@@ -25,6 +43,7 @@
 #'   count as the same solution.
 #' @param seed Seed for the random starts; the caller's random number state
 #'   is restored afterwards. `NULL` uses the current state.
+#' @param nobs Number of observations, required when `data` is a matrix.
 #' @param ... Further arguments passed to [lavaan::cfa()], for example
 #'   `missing = "fiml"`.
 #' @return An object of class `"order_check"`: a list with `solutions` (one
@@ -45,20 +64,46 @@
 #' }
 #' @export
 order_check <- function(data, blocks, estimator = "ML", ordered = FALSE, nstart = 20,
-                        tol = 0.01, seed = 1, ...) {
-  if (!is.data.frame(data)) stop("`data` must be a data frame.", call. = FALSE)
+                        tol = 0.01, seed = 1, nobs = NULL, ...) {
+  from_matrix <- is.matrix(data)
+  if (!is.data.frame(data) && !from_matrix)
+    stop("`data` must be a data frame or a covariance matrix.", call. = FALSE)
   if (!is.list(blocks) || length(blocks) != 2)
     stop("`blocks` must be a list of two character vectors of item names.", call. = FALSE)
   labs <- names(blocks)
   if (is.null(labs) || any(!nzchar(labs))) labs <- c("A", "B")
   items <- c(blocks[[1]], blocks[[2]])
-  miss <- setdiff(items, names(data))
+  miss <- setdiff(items, if (from_matrix) rownames(data) else names(data))
   if (length(miss)) stop("Items not found in `data`: ", paste(miss, collapse = ", "), call. = FALSE)
   if (anyDuplicated(items)) stop("An item appears in both blocks.", call. = FALSE)
-  X <- data[, items, drop = FALSE]
   iA <- seq_along(blocks[[1]]); iB <- length(iA) + seq_along(blocks[[2]])
   is_ord <- isTRUE(ordered) || is.character(ordered)
   ord_arg <- if (isTRUE(ordered)) items else if (is.character(ordered)) ordered else NULL
+  ## ULS is not scale invariant; Theorem 2 concerns ULS on correlations
+  uls <- toupper(estimator) == "ULS"
+  if (from_matrix) {
+    if (is_ord) stop("Ordinal items need raw data, not a covariance matrix.", call. = FALSE)
+    if (is.null(nobs)) stop("`nobs` is required when `data` is a covariance matrix.",
+                            call. = FALSE)
+    S <- data[items, items]
+    if (uls) S <- stats::cov2cor(S)
+    sds <- sqrt(diag(S))
+  } else {
+    X <- data[, items, drop = FALSE]
+    if (uls && !is_ord) X[] <- lapply(X, function(v) as.vector(scale(v)))
+    sds <- if (is_ord) rep(1, length(items)) else vapply(X, stats::sd, 0, na.rm = TRUE)
+  }
+  ## lavaan's robust default standard errors for ULS need raw data
+  extra <- list(...)
+  if (from_matrix && uls && is.null(extra$se)) extra$se <- "none"
+  cfa_on <- function(model, nm) {
+    args <- if (from_matrix)
+      list(model, sample.cov = S[nm, nm], sample.nobs = nobs, std.lv = TRUE,
+           estimator = estimator)
+    else list(model, data = X[, nm, drop = FALSE], std.lv = TRUE, estimator = estimator,
+              ordered = ord_arg)
+    do.call(lavaan::cfa, c(args, extra))
+  }
 
   fit1 <- function(order, l0 = NULL, psi0 = NULL) {
     nm <- items[order]
@@ -66,11 +111,8 @@ order_check <- function(data, blocks, estimator = "ML", ordered = FALSE, nstart 
     model <- paste("f =~", paste(rhs, collapse = " + "))
     if (!is.null(psi0))
       model <- paste(c(model, sprintf("%s ~~ start(%.6f)*%s", nm, psi0[order], nm)), collapse = "\n")
-    tryCatch(quiet_lavaan(lavaan::cfa(model, data = X[, nm, drop = FALSE], std.lv = TRUE,
-                                      estimator = estimator, ordered = ord_arg, ...)),
-             error = function(e) NULL)
+    tryCatch(quiet_lavaan(cfa_on(model, nm)), error = function(e) NULL)
   }
-  sds <- if (is_ord) rep(1, length(items)) else vapply(X, stats::sd, 0, na.rm = TRUE)
   ord_AB <- c(iA, iB); ord_BA <- c(iB, iA)
   fits <- list(fit1(ord_AB), fit1(ord_BA))
   start_lab <- c("default, A first", "default, B first")
@@ -85,24 +127,30 @@ order_check <- function(data, blocks, estimator = "ML", ordered = FALSE, nstart 
   ## two-factor reference
   m2 <- paste0("fA =~ ", paste(items[iA], collapse = " + "), "\n",
                "fB =~ ", paste(items[iB], collapse = " + "))
-  f2 <- tryCatch(quiet_lavaan(lavaan::cfa(m2, data = X, std.lv = TRUE, estimator = estimator,
-                                          ordered = ord_arg, ...)),
-                 error = function(e) NULL)
+  f2 <- tryCatch(quiet_lavaan(cfa_on(m2, items)), error = function(e) NULL)
+  ref_reason <- "Two-factor reference fit is unavailable."
   ref <- NULL
   if (!is.null(f2)) {
-    st <- lavaan::lavInspect(f2, "std")
-    sa <- sign(sum(st$lambda[items[iA], 1])); sb <- sign(sum(st$lambda[items[iB], 2]))
-    ref <- list(lambda_A = abs(mean(st$lambda[items[iA], 1])),
-                lambda_B = abs(mean(st$lambda[items[iB], 2])),
-                phi = sa * sb * st$psi[1, 2])
+    ref <- tryCatch({
+      if (!isTRUE(lavaan::lavInspect(f2, "converged")))
+        stop("Two-factor reference fit did not converge.")
+      st <- lavaan::lavInspect(f2, "std")
+      list(lambda_A = mean(st$lambda[items[iA], 1]),
+           lambda_B = mean(st$lambda[items[iB], 2]), phi = st$psi[1, 2])
+    }, error = function(e) {
+      ref_reason <<- conditionMessage(e)
+      NULL
+    })
   }
 
   sols <- lapply(seq_along(fits), function(k) {
     f <- fits[[k]]
     if (is.null(f) || !isTRUE(lavaan::lavInspect(f, "converged"))) return(NULL)
-    l <- lavaan::lavInspect(f, "std")$lambda[, 1][items]
+    st <- lavaan::lavInspect(f, "std")
+    l <- st$lambda[, 1][items]
     if (sum(l) < 0) l <- -l
-    list(k = k, fmin = unname(lavaan::fitMeasures(f, "fmin")), l = l)
+    list(k = k, fmin = unname(lavaan::fitMeasures(f, "fmin")), l = l,
+         min_uniqueness = min(diag(st$theta)))
   })
   ok <- which(!vapply(sols, is.null, TRUE))
   if (!length(ok)) stop("No one-factor fit converged.", call. = FALSE)
@@ -124,16 +172,19 @@ order_check <- function(data, blocks, estimator = "ML", ordered = FALSE, nstart 
     r <- reps[[j]]
     fm <- quiet_lavaan(lavaan::fitMeasures(fits[[r$k]]))
     get <- function(n) if (n %in% names(fm)) unname(fm[n]) else NA_real_
-    lA <- abs(mean(r$l[iA])); lB <- abs(mean(r$l[iB]))
-    sh <- if (is.null(ref)) list(share_A = NA_real_) else
-      factor_share(lA, lB, ref$lambda_A, ref$lambda_B, ref$phi)
+    lA <- mean(r$l[iA]); lB <- mean(r$l[iB])
+    sh <- if (is.null(ref)) unavailable_factor_share(ref_reason) else
+      available_factor_share(lA, lB, ref$lambda_A, ref$lambda_B, ref$phi)
     found <- c(if (sol_of[1] == j) sprintf("default (%s first)", labs[1]),
                if (sol_of[2] == j) sprintf("default (%s first)", labs[2]),
                if (any(sol_of[-(1:2)] == j)) sprintf("%d random", sum(sol_of[-(1:2)] == j)))
     data.frame(solution = j, fmin = r$fmin, chisq = get("chisq"), df = get("df"),
                cfi = get("cfi"), rmsea = get("rmsea"), srmr = get("srmr"),
                cfi_robust = get("cfi.robust"), rmsea_robust = get("rmsea.robust"),
-               l_A = lA, l_B = lB, share_A = sh$share_A,
+               l_A = lA, l_B = lB, min_uniqueness = r$min_uniqueness, share_A = sh$share_A,
+               share_status = sh$status, share_reason = sh$reason,
+               magnitude_share_A = sh$magnitude_share_A,
+               condition_number = sh$condition_number, sum_condition = sh$sum_condition,
                follows = if (is.na(sh$share_A)) NA_character_ else
                  if (abs(sh$share_A - 0.5) < 0.01) "neither" else
                    labs[ifelse(sh$share_A > 0.5, 1, 2)],
@@ -160,7 +211,7 @@ print.order_check <- function(x, ...) {
                 fmt(x$two_factor$lambda_A, 2), x$labels[1], fmt(x$two_factor$lambda_B, 2),
                 x$labels[2], fmt(x$two_factor$phi, 2)))
   show <- s[, intersect(c("solution", "fmin", "chisq", "cfi", "rmsea", "share_A", "follows",
-                          "found_by"), names(s))]
+                          "share_status", "share_reason", "found_by"), names(s))]
   names(show)[names(show) == "share_A"] <- paste0("share_", x$labels[1])
   num <- vapply(show, is.numeric, TRUE)
   show[num] <- lapply(show[num], function(v) round(v, 4))
